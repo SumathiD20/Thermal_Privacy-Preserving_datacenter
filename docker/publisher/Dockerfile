@@ -1,15 +1,15 @@
 FROM python:3.9-slim
-
-# 1. Set workdir
 WORKDIR /app
 
-# 2. Copy requirements & install
-COPY ../../requirements.txt .
+# Install dependencies
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 3. Copy code and secret & data
-COPY publisher.py .
-COPY temp_reading.csv .
+# Copy only what this service needs (paths are from repo root)
+COPY docker/publisher/publisher.py     ./publisher.py
+COPY temp_reading.csv                  ./temp_reading.csv
+COPY secret.key .
+# secret.key will be mounted at runtime
 
-# 4. Run publisher
 CMD ["python", "publisher.py"]
+

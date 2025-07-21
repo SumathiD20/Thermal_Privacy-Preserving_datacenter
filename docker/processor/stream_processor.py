@@ -1,81 +1,86 @@
+import os
 import json
 import numpy as np
 import joblib
+from datetime import datetime, timedelta
 from cryptography.fernet import Fernet
 import paho.mqtt.client as mqtt
-from datetime import datetime, timedelta
 
-# Config
-MODEL_PATH    = 'iforest.joblib'
-KEY_PATH      = 'secret.key'
-BROKER        = '0.0.0.0'
-PORT          = 1883
-RAW_TOPIC     = 'dc/temperature/raw_encrypted'
-MASKED_TOPIC  = 'dc/temperature/masked_encrypted'
+# — Configuration (via environment or defaults) —
+BROKER = os.getenv('BROKER_HOST', 'broker')
+PORT = int(os.getenv('BROKER_PORT', '1883'))
+RAW_TOPIC = 'dc/temperature/raw_encrypted'
+MASKED_TOPIC = 'dc/temperature/masked_encrypted'
 OVERHEAT_TEMP = 30.0
-PROLONGED_SECS= 60
+PROLONGED_SECS = 60
 
-# Load model & key
-model  = joblib.load(MODEL_PATH)
-cipher = Fernet(open(KEY_PATH,'rb').read())
+# — Load model and key from mounted files —
+model = joblib.load('iforest.joblib')
+cipher = Fernet(open('secret.key', 'rb').read())
 
-# State for prolonged-open
-door_start = None
-alerted    = False
+# — State for prolonged-open detection —
+door_open_start = None
+prolonged_alert_sent = False
 
-def on_connect(c, u, flags, rc):
-    print(f"[Processor] Connected (rc={rc})")
-    c.subscribe(RAW_TOPIC)
-    print(f"[Processor] Subscribed to {RAW_TOPIC}")
+# — MQTT Callbacks —
+def on_connect(client, userdata, flags, reasonCode, properties=None):
+    print(f"[Processor] Connected to {BROKER}:{PORT} (rc={reasonCode})")
+    client.subscribe(RAW_TOPIC)
+    print(f"[Processor] Subscribed to topic: {RAW_TOPIC}")
 
-def on_message(c, u, msg):
-    global door_start, alerted
-
-    print(f"[Processor] Message on {msg.topic}")
+def on_message(client, userdata, msg):
+    global door_open_start, prolonged_alert_sent
+    print(f"[Processor] Message received on {msg.topic}")
     try:
         data = json.loads(cipher.decrypt(msg.payload))
     except Exception as e:
-        print("Decryption error:", e)
+        print(f"[Processor] Decrypt/JSON error: {e}")
         return
 
-    t_str = data['timestamp']
-    temp  = data['temperature_C']
-    t     = datetime.fromisoformat(t_str.replace('Z','+00:00'))
+    t_str = data.get('timestamp')
+    temp = data.get('temperature_C')
+    t = datetime.fromisoformat(t_str.replace('Z','+00:00'))
 
-    is_anom = (model.predict([[temp]]) == -1)
+    # Anomaly detection
+    is_anomaly = (model.predict([[temp]]) == -1)
 
-    # Prolonged-open logic
-    if is_anom:
-        if door_start is None:
-            door_start = t
-            alerted = False
-        elif not alerted and (t - door_start) >= timedelta(seconds=PROLONGED_SECS):
-            print(f"🚨 Prolonged open since {door_start.time()}")
-            alerted = True
+    # Prolonged door-open logic
+    if is_anomaly:
+        if door_open_start is None:
+            door_open_start = t
+            prolonged_alert_sent = False
+        elif not prolonged_alert_sent and (t - door_open_start) >= timedelta(seconds=PROLONGED_SECS):
+            print(f"🚨 Prolonged door-open alarm! Open since {door_open_start.time()}")
+            prolonged_alert_sent = True
     else:
-        door_start = None
-        alerted    = False
+        door_open_start = None
+        prolonged_alert_sent = False
 
-    # Mask or pass-through
+    # Masking or pass-through
     if temp >= OVERHEAT_TEMP:
-        out = temp
-        print(f"[Processor] Overheat {temp:.2f}°C at {t_str}")
-    elif is_anom:
-        out = 25 + np.random.normal(0,0.1)
-        print(f"[Processor] Anomaly {temp:.2f}→{out:.2f}")
+        out_temp = temp
+        print(f"[Processor] Overheat {temp:.2f}°C at {t_str} — passing real value")
+    elif is_anomaly:
+        out_temp = 25 + np.random.normal(0, 0.1)
+        print(f"[Processor] Anomaly {temp:.2f}→{out_temp:.2f}")
     else:
-        out = temp + np.random.normal(0,0.02)
+        out_temp = temp + np.random.normal(0, 0.02)
 
-    payload = {'timestamp': t_str,
-               'temperature': round(out,2),
-               'anomaly': bool(is_anom)}
+    # Encrypt and publish masked data
+    payload = {
+        'timestamp': t_str,
+        'temperature': round(out_temp, 2),
+        'anomaly': bool(is_anomaly)
+    }
     encrypted = cipher.encrypt(json.dumps(payload).encode())
-    c.publish(MASKED_TOPIC, encrypted)
+    client.publish(MASKED_TOPIC, encrypted)
     print(f"[Processor] Published to {MASKED_TOPIC}")
 
-client = mqtt.Client()
+# — MQTT Client Setup (using MQTT v5) —
+client = mqtt.Client(protocol=mqtt.MQTTv5)
 client.on_connect = on_connect
 client.on_message = on_message
+
+print(f"[Processor] Connecting to broker {BROKER}:{PORT} …")
 client.connect(BROKER, PORT)
-print("[Processor] Starting loop…")
 client.loop_forever()

@@ -4,20 +4,28 @@ services:
     image: eclipse-mosquitto:latest
     ports:
       - "1883:1883"
-    volumes:
-      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
+    
 
   publisher:
-    build: ./docker/publisher
+    build:
+      context: .
+      dockerfile: docker/publisher/Dockerfile
     depends_on:
       - broker
 
   processor:
-    build: ./docker/processor
+    build:
+      context: .
+      dockerfile: docker/processor/Dockerfile
     depends_on:
       - broker
+    environment:
+      - BROKER_HOST=broker
+      - BROKER_PORT=1883
 
   subscriber:
-    build: ./docker/subscriber
+    build:
+      context: .
+      dockerfile: docker/subscriber/Dockerfile
     depends_on:
       - processor
