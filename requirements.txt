@@ -1,0 +1,7 @@
+pandas
+numpy
+scikit-learn
+joblib
+cryptography
+paho-mqtt
+psutil

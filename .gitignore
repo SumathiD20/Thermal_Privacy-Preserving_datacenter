@@ -20,3 +20,9 @@ rad.json
 *.flf
 #Test results file
 TestResults.xml
+# variable value file
+terraform.tfvars
+#State file
+*.tfstate*
+secret.key
+terraform/.terraform*
