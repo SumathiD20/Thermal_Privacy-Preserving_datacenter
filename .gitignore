@@ -20,3 +20,7 @@ rad.json
 *.flf
 #Test results file
 TestResults.xml
+secret.key
+terraform.tfstate*
+terraform/.terraform/providers*
+heat-pipeline-demo/Dissertation_DevOps.pem

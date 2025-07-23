@@ -1,0 +1,11 @@
+version: "3.8"
+services:
+  broker:
+    image: eclipse-mosquitto:latest
+    ports: ["1883:1883"]
+  processor:
+    build:
+      context: ./docker/processor
+    volumes:
+      - /home/ubuntu/secret.key:/app/secret.key:ro
+      - /home/ubuntu/model/iforest.joblib:/app/iforest.joblib:ro
