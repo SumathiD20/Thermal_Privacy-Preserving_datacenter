@@ -1,26 +1,29 @@
 #!/usr/bin/env python3
 import json
 import time
-from datetime import datetime
-import numpy as np
+from datetime import datetime, timedelta
 from cryptography.fernet import Fernet
+import numpy as np
 import paho.mqtt.client as mqtt
 
 # — MQTT & Encryption Config —
-BROKER = '54.90.99.53'    # EC2’s IP
+BROKER = '34.224.84.54'    # ← replace
 PORT   = 1883
 TOPIC  = 'dc/temperature/masked_encrypted'
 KEY    = 'secret.key'
 
 # — HVAC & Simulation Params —
-SETPOINT = 25.0    # desired temp
-AMBIENT  = 22.0    # outside temp
-R        = 10.0    # thermal resistance
-C        = 5.0     # thermal capacitance
-DT       = 1.0     # loop interval (sec)
-OVERHEAT = 30.0    # overheat threshold
+SETPOINT      = 25.0    # °C
+AMBIENT       = 22.0    # °C
+R             = 10.0    # thermal resistance
+C             = 5.0     # thermal capacitance
+DT            = 1.0     # loop interval (s)
+OVERHEAT      = 30.0    # °C
+NIGHT_START   = 22      # 22:00
+NIGHT_END     = 5       # 05:00
+PROLONGED_SEC = 60      # s
 
-# — Simple PID Controller — 
+# — Simple PID Controller —
 class PID:
     def __init__(self, kp, ki, kd, dt):
         self.kp, self.ki, self.kd = kp, ki, kd
@@ -37,58 +40,77 @@ class PID:
         self.prev_error = error
         return output
 
-# — Load key & set up MQTT — 
-cipher = Fernet(open(KEY,'rb').read())
-pid = PID(kp=2.0, ki=0.1, kd=0.05, dt=DT)
-room_temp = None    # will initialize on first message
+# — Load key & init objects —
+cipher     = Fernet(open(KEY,'rb').read())
+pid        = PID(kp=2.0, ki=0.1, kd=0.05, dt=DT)
+room_temp  = None
+
+# — State for prolonged-open —
+door_start   = None
+prolonged_fired = False
 
 def on_connect(client, userdata, flags, rc):
-    print(f"[Subscriber] Connected (rc={rc}), subscribing to {TOPIC}")
+    print(f"[Subscriber] Connected (rc={rc}) – subscribing to {TOPIC}")
     client.subscribe(TOPIC)
 
 def on_message(client, userdata, msg):
-    global room_temp
+    global room_temp, door_start, prolonged_fired
 
     # 1. Decrypt & parse
     try:
-        decrypted = cipher.decrypt(msg.payload)
-        data = json.loads(decrypted)
+        data = json.loads(cipher.decrypt(msg.payload))
     except Exception as e:
         print(f"[Subscriber] Decrypt error: {e}")
         return
 
-    t_str = data['timestamp']
+    t_str    = data['timestamp']
     measured = data['temperature']
-    is_anom = data.get('anomaly', False)
-    t = datetime.fromisoformat(t_str.replace('Z','+00:00'))
+    is_anom  = data.get('anomaly', False)
+    t        = datetime.fromisoformat(t_str.replace('Z','+00:00'))
 
     # Initialize model state
     if room_temp is None:
         room_temp = measured
 
-    # 2. Compute control
-    error = SETPOINT - measured
+    # 2. PID control
+    error   = SETPOINT - measured
     control = pid.update(error)
 
-    # 3. RC thermal model: dT = (−(T−Ta)/(R*C) + control/C)⋅dt
-    dT = (-(room_temp - AMBIENT)/(R*C) + control/C) * DT
+    # 3. RC thermal model
+    dT        = (-(room_temp - AMBIENT)/(R*C) + control/C) * DT
     room_temp += dT
 
-    # 4. Print status
-    print(f"[HVAC] {t.time()}  Measured={measured:.2f}°C  "
-          f"Control={control:.2f}  Model={room_temp:.2f}°C  Anom={is_anom}")
+    # 4. Alerts
 
-    # 5. Alerts
+    # Overheat
     if measured >= OVERHEAT:
-        print("⚠️  OVERHEAT ALARM!")
-    if is_anom and (t.hour >= 22 or t.hour < 5):
-        print("🔒  Night-time door event")
+        print(f"⚠️ OVERHEAT at {t.time()} – measured {measured:.2f}°C")
 
-# — MQTT Client Setup — 
+    # Night-time door
+    if is_anom and (t.hour >= NIGHT_START or t.hour < NIGHT_END):
+        print(f"🔒 Night-door at {t.time()}")
+
+    # Prolonged-open
+    if is_anom:
+        if door_start is None:
+            door_start      = t
+            prolonged_fired = False
+        elif not prolonged_fired and (t - door_start) >= timedelta(seconds=PROLONGED_SEC):
+            print(f"🚨 Prolonged-open since {door_start.time()}")
+            prolonged_fired = True
+    else:
+        door_start      = None
+        prolonged_fired = False
+
+    # 5. Full status line
+    print(f"[HVAC] {t.time()}  Measured={measured:.2f}°C  Controlled={control:.2f}  "
+          f"Model={room_temp:.2f}°C  Anomaly_Detected={is_anom}")
+
+# — MQTT Client Setup —
 client = mqtt.Client()
 client.on_connect = on_connect
 client.on_message = on_message
 client.connect(BROKER, PORT)
 
-print("[Subscriber] Starting HVAC simulation loop…")
+print("[Subscriber] Starting HVAC loop…")
 client.loop_forever()
