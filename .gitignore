@@ -20,3 +20,7 @@ rad.json
 *.flf
 #Test results file
 TestResults.xml
+secret.key
+Dissertation_DevOps.pem
+*tfstate*
+terraform/.terraform/providers/registry*
