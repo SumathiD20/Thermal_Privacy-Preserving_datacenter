@@ -2,7 +2,7 @@ import pandas as pd
 from sklearn.ensemble import IsolationForest
 import joblib
 
-# 1. Load your sample CSV
+# 1. Load the sample temperature data
 df = pd.read_csv('temp_reading.csv', parse_dates=['timestamp'])
 quiet = df[df['timestamp'] < df['timestamp'].iloc[0] + pd.Timedelta(seconds=10)]
 

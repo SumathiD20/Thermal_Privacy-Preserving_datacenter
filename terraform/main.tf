@@ -46,10 +46,10 @@ data "aws_iam_instance_profile" "ec2_profile" {
 # Security group allowing SSH and MQTT from your IP only
 resource "aws_security_group" "sg" {
   name        = "heat-pipeline-sg"
-  description = "Allow SSH and MQTT plaintext from laptop IP"
+  description = "Allow SSH and MQTT plaintext from loal system  IP"
 
   ingress {
-    description = "SSH from laptop"
+    description = "SSH from Local system"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
@@ -57,7 +57,7 @@ resource "aws_security_group" "sg" {
   }
 
   ingress {
-    description = "MQTT (port 1883) from laptop"
+    description = "MQTT (port 1883) from local system"
     from_port   = 1883
     to_port     = 1883
     protocol    = "tcp"

@@ -1,16 +1,21 @@
 #!/usr/bin/env python3
 import json
 import time
+import os
 from datetime import datetime, timedelta
+from dotenv import load_dotenv
 from cryptography.fernet import Fernet
 import numpy as np
 import paho.mqtt.client as mqtt
+load_dotenv()  # this will look for a .env
 
-# — MQTT & Encryption Config —
-BROKER = '34.224.84.54'    # ← replace
-PORT   = 1883
-TOPIC  = 'dc/temperature/masked_encrypted'
-KEY    = 'secret.key'
+# — MQTT & Encryption Config via ENV VARS —
+BROKER = os.getenv('MQTT_BROKER', 'localhost')
+PORT   = int(os.getenv('MQTT_PORT',  '1883'))
+TOPIC  = os.getenv('MQTT_TOPIC', 'dc/temperature/masked_encrypted')
+KEY    = os.getenv('FERNET_KEY_FILE', 'secret.key')
+
+
 
 # — HVAC & Simulation Params —
 SETPOINT      = 25.0    # °C
