@@ -3,7 +3,7 @@ name: Python Syntax Check
 on:
   push:
     branches:
-      - devops
+      - feature-DevOpsPipeline
 
 jobs:
   python-syntax-check:
