@@ -86,7 +86,8 @@ plt.xlim(door_open_start - pd.Timedelta(seconds=5),
          door_open_end + pd.Timedelta(seconds=5))
 
 # Labels, title, legend
-plt.title('Original vs. Masked Temperature Readings\nRed X’s mark detected door-opening dips')
+plt.title(
+    'Original vs. Masked Temperature Readings\nRed X’s mark detected door-opening dips')
 plt.xlabel('Time')
 plt.ylabel('Temperature (°C)')
 plt.legend(loc='upper right')

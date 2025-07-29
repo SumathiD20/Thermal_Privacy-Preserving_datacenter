@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from io import StringIO
 import time
 import json
 import pandas as pd
@@ -10,13 +11,13 @@ import os
 load_dotenv()
 
 # — Configuration —
-#BROKER = '54.91.39.188'      # EC2 public IP
-#PORT   = 1883
-#TOPIC  = 'dc/temperature/raw_encrypted'
-#CSV_FILE = 'temp_reading.csv'
-BROKER   = os.getenv('MQTT_BROKER', 'localhost')
-PORT     = int(os.getenv('MQTT_PORT',  '1883'))
-TOPIC    = os.getenv('MQTT_PUB_TOPIC', 'dc/temperature/raw_encrypted')
+# BROKER = '54.91.39.188'      # EC2 public IP
+# PORT   = 1883
+# TOPIC  = 'dc/temperature/raw_encrypted'
+# CSV_FILE = 'temp_reading.csv'
+BROKER = os.getenv('MQTT_BROKER', 'localhost')
+PORT = int(os.getenv('MQTT_PORT', '1883'))
+TOPIC = os.getenv('MQTT_PUB_TOPIC', 'dc/temperature/raw_encrypted')
 CSV_FILE = os.getenv('CSV_FILE', 'temp_reading.csv')
 
 # — Load encryption key —
@@ -25,10 +26,10 @@ with open('secret.key', 'rb') as f:
 
 # — Read temperature data, skipping blank lines or comments —
 with open(CSV_FILE, 'r') as file:
-    lines = [line for line in file if line.strip() and not line.strip().startswith('#')]
+    lines = [line for line in file if line.strip(
+    ) and not line.strip().startswith('#')]
 
 # Read the cleaned data into DataFrame and parse timestamp column
-from io import StringIO
 df = pd.read_csv(StringIO(''.join(lines)))
 df['timestamp'] = pd.to_datetime(df['timestamp'])
 
@@ -41,7 +42,7 @@ client.loop_start()
 for _, row in df.iterrows():
     t_str = row['timestamp'].strftime('%Y-%m-%dT%H:%M:%SZ')
     message = json.dumps({
-        'timestamp':     t_str,
+        'timestamp': t_str,
         'temperature_C': row['temperature_C']
     }).encode()
 
