@@ -116,10 +116,7 @@ def on_message(client, userdata, msg):
 
     # Alerts on console
     if measured >= OVERHEAT:
-        console.info(
-            f"\033[91m OVERHEAT at {
-                t.time()} – {
-                measured:.2f}°C\033[0m")
+        console.info(f"\033[91m OVERHEAT at {t.time()} – {measured:.2f}°C\033[0m")
 
     if is_anom and (t.hour >= NIGHT_START or t.hour < NIGHT_END):
         console.info(f"\033[93m Night‐time door event at {t.time()}\033[0m")
@@ -129,9 +126,7 @@ def on_message(client, userdata, msg):
             door_start = t
             prolonged_fired = False
         elif not prolonged_fired and (t - door_start) >= timedelta(seconds=PROLONGED_SEC):
-            console.info(
-                f"\033[96m Prolonged‐open since {
-                    door_start.time()}\033[0m")
+            console.info(f"\033[96m Prolonged‐open since {door_start.time()}\033[0m")
             prolonged_fired = True
     else:
         door_start = None

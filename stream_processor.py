@@ -54,9 +54,7 @@ def on_message(client, userdata, msg):
             door_open_start = t
             prolonged_alerted = False
         elif not prolonged_alerted and (t - door_open_start) >= timedelta(seconds=PROLONGED_SECS):
-            print(
-                f"\033[93m Prolonged door open since {
-                    door_open_start.time()}\033[0m")
+            print(f"\033[93m Prolonged door open since {door_open_start.time()}\033[0m")
             prolonged_alerted = True
     else:
         door_open_start = None
@@ -65,9 +63,7 @@ def on_message(client, userdata, msg):
     # Mask or pass‐through
     if temp >= OVERHEAT_TEMP:
         out_temp = temp
-        print(
-            f"\033[91m[Processor] Overheat {
-                temp:.2f}°C – passing real value\033[0m")
+        print(f"\033[91m[Processor] Overheat {temp:.2f}°C – passing real value\033[0m")
     elif is_anomaly:
         out_temp = 25.0 + np.random.normal(0, 0.1)
         print(f"[Processor] Anomaly {temp:.2f}→{out_temp:.2f} (masked)")

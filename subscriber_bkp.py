@@ -93,10 +93,7 @@ def on_message(client, userdata, msg):
 
     # Overheat
     if measured >= OVERHEAT:
-        print(
-            f"\033[91m OVERHEAT at {
-                t.time()} – measured {
-                measured:.2f}°C\033[0m")
+        print(f"\033[91m OVERHEAT at {t.time()} – measured {measured:.2f}°C\033[0m")
 
     # Night-time door
     if is_anom and (t.hour >= NIGHT_START or t.hour < NIGHT_END):
@@ -115,12 +112,7 @@ def on_message(client, userdata, msg):
         prolonged_fired = False
 
     # 5. Full status line
-    print(
-        f"[HVAC] {
-            t.time()}  Measured={
-            measured:.2f}°C  Controlled={
-                control:.2f}  " f"Model={
-                    room_temp:.2f}°C  Anomaly_Detected={is_anom}")
+    print(f"[HVAC] {t.time()}  Measured={measured:.2f}°C  Controlled={control:.2f}  " f"Model={room_temp:.2f}°C  Anomaly_Detected={is_anom}")
 
 
 # — MQTT Client Setup —

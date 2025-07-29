@@ -10,11 +10,7 @@ import os
 # Load from .env in the current directory
 load_dotenv()
 
-# — Configuration —
-# BROKER = '54.91.39.188'      # EC2 public IP
-# PORT   = 1883
-# TOPIC  = 'dc/temperature/raw_encrypted'
-# CSV_FILE = 'temp_reading.csv'
+
 BROKER = os.getenv('MQTT_BROKER', 'localhost')
 PORT = int(os.getenv('MQTT_PORT', '1883'))
 TOPIC = os.getenv('MQTT_PUB_TOPIC', 'dc/temperature/raw_encrypted')
