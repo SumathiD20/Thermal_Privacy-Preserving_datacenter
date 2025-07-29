@@ -1,34 +1,48 @@
 #!/usr/bin/env python3
-import json
-import time
 import os
+import json
+import logging
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from cryptography.fernet import Fernet
 import numpy as np
 import paho.mqtt.client as mqtt
-load_dotenv()  # this will look for a .env
 
-# — MQTT & Encryption Config via ENV VARS —
-BROKER = os.getenv('MQTT_BROKER', 'localhost')
-PORT   = int(os.getenv('MQTT_PORT',  '1883'))
-TOPIC  = os.getenv('MQTT_TOPIC', 'dc/temperature/masked_encrypted')
-KEY    = os.getenv('FERNET_KEY_FILE', 'secret.key')
+# ─── Load ENV & Config ─────────────────────────────────────────────────────────
+load_dotenv()
 
+BROKER        = os.getenv('MQTT_BROKER', 'localhost')
+PORT          = int(os.getenv('MQTT_PORT', '1883'))
+TOPIC         = os.getenv('MQTT_TOPIC', 'dc/temperature/masked_encrypted')
+KEY_FILE      = os.getenv('FERNET_KEY_FILE', 'secret.key')
 
+SETPOINT      = 25.0
+AMBIENT       = 22.0
+R             = 10.0
+C             = 5.0
+DT            = 1.0
+OVERHEAT      = 30.0
+NIGHT_START   = 22
+NIGHT_END     = 5
+PROLONGED_SEC = int(os.getenv('PROLONGED_SEC', '20'))
 
-# — HVAC & Simulation Params —
-SETPOINT      = 25.0    # °C
-AMBIENT       = 22.0    # °C
-R             = 10.0    # thermal resistance
-C             = 5.0     # thermal capacitance
-DT            = 1.0     # loop interval (s)
-OVERHEAT      = 30.0    # °C
-NIGHT_START   = 22      # 22:00
-NIGHT_END     = 5       # 05:00
-PROLONGED_SEC = 60      # s
+# ─── Logging Setup ──────────────────────────────────────────────────────────────
+console = logging.getLogger('console')
+console.setLevel(logging.INFO)
+ch = logging.StreamHandler()
+ch.setFormatter(logging.Formatter('%(message)s'))
+console.addHandler(ch)
 
-# — Simple PID Controller —
+protected = logging.getLogger('protected')
+protected.setLevel(logging.DEBUG)
+fh = logging.FileHandler('protected.log', encoding='utf-8')
+fh.setFormatter(logging.Formatter(
+    '%(asctime)s | Meas=%(measured).2f | Ctrl=%(control).2f | '
+    'Model=%(model).2f | Anom=%(is_anom)s'
+))
+protected.addHandler(fh)
+
+# ─── PID Controller ────────────────────────────────────────────────────────────
 class PID:
     def __init__(self, kp, ki, kd, dt):
         self.kp, self.ki, self.kd = kp, ki, kd
@@ -39,33 +53,30 @@ class PID:
     def update(self, error):
         self.integral += error * self.dt
         derivative = (error - self.prev_error) / self.dt
-        output = (self.kp * error +
-                  self.ki * self.integral +
-                  self.kd * derivative)
+        out = (self.kp * error + self.ki * self.integral + self.kd * derivative)
         self.prev_error = error
-        return output
+        return out
 
-# — Load key & init objects —
-cipher     = Fernet(open(KEY,'rb').read())
+# ─── State & Init ─────────────────────────────────────────────────────────────
+cipher     = Fernet(open(KEY_FILE, 'rb').read())
 pid        = PID(kp=2.0, ki=0.1, kd=0.05, dt=DT)
 room_temp  = None
-
-# — State for prolonged-open —
-door_start   = None
+door_start      = None
 prolonged_fired = False
 
+# ─── MQTT Callbacks ───────────────────────────────────────────────────────
 def on_connect(client, userdata, flags, rc):
-    print(f"[Subscriber] Connected (rc={rc}) – subscribing to {TOPIC}")
+    console.info(f"[Subscriber] Connected (rc={rc}) – subscribing to {TOPIC}")
     client.subscribe(TOPIC)
 
 def on_message(client, userdata, msg):
     global room_temp, door_start, prolonged_fired
 
-    # 1. Decrypt & parse
+    # Decrypt & parse
     try:
         data = json.loads(cipher.decrypt(msg.payload))
     except Exception as e:
-        print(f"[Subscriber] Decrypt error: {e}")
+        console.error(f"[Subscriber] Decrypt error: {e}")
         return
 
     t_str    = data['timestamp']
@@ -77,45 +88,50 @@ def on_message(client, userdata, msg):
     if room_temp is None:
         room_temp = measured
 
-    # 2. PID control
+    # PID control & thermal model
     error   = SETPOINT - measured
     control = pid.update(error)
-
-    # 3. RC thermal model
-    dT        = (-(room_temp - AMBIENT)/(R*C) + control/C) * DT
+    dT      = (-(room_temp - AMBIENT)/(R*C) + control/C) * DT
     room_temp += dT
 
-    # 4. Alerts
+    # If not an anomaly, re-sync model to the masked reading
+    if not is_anom:
+        room_temp = measured
 
-    # Overheat
+    # Console: core status
+    console.info(f"{t.date()} {t.time()}  Masked={measured:.2f}°C  Model={room_temp:.2f}°C")
+
+    # Alerts on console
     if measured >= OVERHEAT:
-        print(f"⚠️ OVERHEAT at {t.time()} – measured {measured:.2f}°C")
+        console.info(f"\033[91m OVERHEAT at {t.time()} – {measured:.2f}°C\033[0m")
 
-    # Night-time door
     if is_anom and (t.hour >= NIGHT_START or t.hour < NIGHT_END):
-        print(f"🔒 Night-door at {t.time()}")
+        console.info(f"\033[93m Night‐time door event at {t.time()}\033[0m")
 
-    # Prolonged-open
     if is_anom:
         if door_start is None:
             door_start      = t
             prolonged_fired = False
         elif not prolonged_fired and (t - door_start) >= timedelta(seconds=PROLONGED_SEC):
-            print(f"🚨 Prolonged-open since {door_start.time()}")
+            console.info(f"\033[96m Prolonged‐open since {door_start.time()}\033[0m")
             prolonged_fired = True
     else:
         door_start      = None
         prolonged_fired = False
 
-    # 5. Full status line
-    print(f"[HVAC] {t.time()}  Measured={measured:.2f}°C  Controlled={control:.2f}  "
-          f"Model={room_temp:.2f}°C  Anomaly_Detected={is_anom}")
+    # Protected log: full details
+    protected.debug('', extra={
+        'measured': measured,
+        'control':  control,
+        'model':    room_temp,
+        'is_anom':  is_anom
+    })
 
-# — MQTT Client Setup —
+# ─── Run MQTT Loop ──────────────────────────────────────────────────────────────
 client = mqtt.Client()
 client.on_connect = on_connect
 client.on_message = on_message
 client.connect(BROKER, PORT)
 
-print("[Subscriber] Starting HVAC loop…")
+console.info("[Subscriber] Starting HVAC loop…")
 client.loop_forever()
