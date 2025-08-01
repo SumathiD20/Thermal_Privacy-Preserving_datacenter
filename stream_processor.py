@@ -5,6 +5,14 @@ import joblib
 from datetime import datetime, timedelta
 from cryptography.fernet import Fernet
 import paho.mqtt.client as mqtt
+from datadog import initialize, statsd  # Datadog integration
+
+# — Datadog setup —
+options = {
+    'statsd_host': '127.0.0.1',
+    'statsd_port': 8125
+}
+initialize(**options)
 
 # — Configuration —
 BROKER = 'localhost'
@@ -33,20 +41,26 @@ def on_message(client, userdata, msg):
     global door_open_start, prolonged_alerted
     print(f"[Processor] Message received on {msg.topic}")
 
-    # Decrypt & parse
+    statsd.increment('stream_processor.messages_received')
+
     try:
         payload = cipher.decrypt(msg.payload)
         data = json.loads(payload)
     except Exception as e:
         print(f"[Processor] Decrypt/parse error: {e}")
+        statsd.increment('stream_processor.decrypt_errors')
         return
 
     t_str = data.get('timestamp')
     temp = data.get('temperature_C')
     t = datetime.fromisoformat(t_str.replace('Z', '+00:00'))
 
+    statsd.histogram('stream_processor.temperature', temp)
+
     # Anomaly detection
     is_anomaly = model.predict([[temp]])[0] == -1
+    if is_anomaly:
+        statsd.increment('stream_processor.anomalies_detected')
 
     # Prolonged‐open alarm logic
     if is_anomaly:
@@ -56,6 +70,7 @@ def on_message(client, userdata, msg):
         elif not prolonged_alerted and (t - door_open_start) >= timedelta(seconds=PROLONGED_SECS):
             print(f"\033[93m Prolonged door open since {door_open_start.time()}\033[0m")
             prolonged_alerted = True
+            statsd.increment('stream_processor.prolonged_open_alerts')
     else:
         door_open_start = None
         prolonged_alerted = False
@@ -64,6 +79,7 @@ def on_message(client, userdata, msg):
     if temp >= OVERHEAT_TEMP:
         out_temp = temp
         print(f"\033[91m[Processor] Overheat {temp:.2f}°C – passing real value\033[0m")
+        statsd.increment('stream_processor.overheat_events')
     elif is_anomaly:
         out_temp = 25.0 + np.random.normal(0, 0.1)
         print(f"[Processor] Anomaly {temp:.2f}→{out_temp:.2f} (masked)")
@@ -78,9 +94,10 @@ def on_message(client, userdata, msg):
     }).encode()
     client.publish(MASKED_TOPIC, cipher.encrypt(new_payload))
     print(f"[Processor] Published to {MASKED_TOPIC}")
+    statsd.increment('stream_processor.published')
 
 
-# — MQTT Client Setup (plain MQTT) —
+# — MQTT Client Setup —
 client = mqtt.Client()
 client.on_connect = on_connect
 client.on_message = on_message

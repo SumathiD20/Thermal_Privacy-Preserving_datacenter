@@ -24,7 +24,7 @@ def dummy_model():
 
 def test_anomaly_detection(dummy_model):
     assert dummy_model.predict([[25.0]])[0] == 1  # normal
-    assert dummy_model.predict([[55.0]])[0] == -1  # anomaly
+    assert dummy_model.predict([[29.0]])[0] == -1  # anomaly
 
 def test_overheat_threshold():
     OVERHEAT_TEMP = 30.0

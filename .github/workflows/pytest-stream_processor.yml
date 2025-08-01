@@ -24,4 +24,5 @@ jobs:
 
       - name: Run unit tests
         run: |
-          pytest testing
+          echo "Running tests with verbose output..."
+          pytest testing --verbose --tb=short --maxfail=5

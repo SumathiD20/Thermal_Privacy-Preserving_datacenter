@@ -25,3 +25,4 @@ Dissertation_DevOps.pem
 *tfstate*
 terraform/.terraform/providers/registry*
 .env
+ec2_github*
