@@ -3,6 +3,7 @@ name: Python Unit Tests
 on:
   push:
     branches:
+      - feature-TestStrategy
       - feature-DevOpsPipeline
 
 jobs:
@@ -25,4 +26,4 @@ jobs:
       - name: Run unit tests
         run: |
           echo "Running tests with verbose output..."
-          pytest testing --verbose --tb=short --maxfail=5
+          pytest testing_GitHub_Actions --verbose --tb=short --maxfail=5
