@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from sklearn.ensemble import IsolationForest
 from io import StringIO
 
-# 1) Load and clean CSV (ignore comments and blank lines)
+# 1) Load and clean CSV
 with open('temp_reading.csv', 'r') as f:
     lines = [line for line in f if line.strip() and not line.strip().startswith('#')]
 df = pd.read_csv(StringIO(''.join(lines)))

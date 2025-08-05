@@ -24,3 +24,5 @@ TestResults.xml
 *.key
 *.pem
 *.env
+ec2_github
+*cache
