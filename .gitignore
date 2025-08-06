@@ -26,3 +26,4 @@ TestResults.xml
 *.env
 ec2_github
 *cache
+Unit_Test/__pycache__/test_pipeline.cpython-313-pytest-8.4.1.pyc
