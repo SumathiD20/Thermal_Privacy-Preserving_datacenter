@@ -26,7 +26,7 @@ for temp in df['temperature_C']:
     if temp >= 30.0 or is_anom:
         out = 25.0 + np.random.normal(0, 0.1)  # Mask anomaly  # small, realistic noise
     else:
-        out = temp + np.random.normal(0, 0.02)  # Slight noise for normal data  
+        out = temp 
 
     masked.append(out)
 
