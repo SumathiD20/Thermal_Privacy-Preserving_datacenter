@@ -15,17 +15,17 @@ BROKER        = os.getenv('MQTT_BROKER', 'localhost')
 PORT          = int(os.getenv('MQTT_PORT', '1883'))
 TOPIC         = os.getenv('MQTT_TOPIC', 'dc/temperature/masked_encrypted')
 KEY_FILE      = os.getenv('FERNET_KEY_FILE', 'secret.key')
-
-SETPOINT      = 25.0
-AMBIENT       = 22.0
-R             = 10.0
-C             = 5.0
-DT            = 1.0
-OVERHEAT      = 30.0
-COLD_ALERT    = 21.0
-NIGHT_START   = 22
-NIGHT_END     = 5
-PROLONGED_SEC = int(os.getenv('PROLONGED_SEC', '20'))
+# HVAC Loop SETPOINTS
+SETPOINT      = 25.0 # °C
+AMBIENT       = 22.0 # °C
+R             = 10.0 # thermal resistance
+C             = 5.0  # thermal capacitance
+DT            = 1.0  # loop interval (s)
+OVERHEAT      = 30.0 # °C
+COLD_ALERT    = 21.0 # °C
+NIGHT_START   = 22   # 22:00
+NIGHT_END     = 5    # 05:00
+PROLONGED_SEC = int(os.getenv('PROLONGED_SEC', '20')) #seconds
 
 # ─── Logging Setup ──────────────────────────────────────────────────────────────
 console = logging.getLogger('console')
@@ -103,14 +103,17 @@ def on_message(client, userdata, msg):
     console.info(f"{t.date()} {t.time()}  Masked={measured:.2f}°C  Model={room_temp:.2f}°C")
 
     # Alerts on console
+
+    # Overheat
     if measured >= OVERHEAT:
         console.info(f"\033[91m OVERHEAT at {t.time()} – {measured:.2f}°C\033[0m")
+    # Undercool
     elif measured <= COLD_ALERT:
         console.info(f"\033[96m UNDERCOOL at {t.time()} – {measured:.2f}°C (Regulating...)\033[0m")
-
+    # Night Door access (Unusal Time)
     if is_anom and (t.hour >= NIGHT_START or t.hour < NIGHT_END):
         console.info(f"\033[93m Night‐time door event at {t.time()}\033[0m")
-
+    # Prolonged Door Open
     if is_anom:
         if door_start is None:
             door_start      = t

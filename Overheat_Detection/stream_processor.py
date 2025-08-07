@@ -63,7 +63,7 @@ def on_message(client, userdata, msg):
     if temp >= OVERHEAT_TEMP:
         out_temp = temp
         print(f"\033[91m[Processor] Overheat {temp:.2f}°C – passing real value\033[0m")
-    elif temp < COLD_TEMP:
+    elif temp <= COLD_TEMP:
         out_temp = temp
         print(f"\033[94m[Processor] Undercool {temp:.2f}°C – passing real value\033[0m")
     elif is_anomaly:
