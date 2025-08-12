@@ -3,7 +3,6 @@ on:
   push:
     branches: [ "feature-Docker" ]
     
-
 jobs:
   test-and-deploy:
     runs-on: self-hosted  # Uses EC2 runner!
@@ -12,16 +11,12 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run tests
-        run: |
-          run: python3 -m pytest testing/test_processor.py -v
+        run: python3 -m pytest testing/test_processor.py -v
 
       - name: Backup & Deploy
         if: success()
         run: |
           # Rename old file (add date)
           mv ~/stream_processor.py ~/stream_processor_$(date +'%Y-%m-%d').py
-
           # Copy new file 
           cp ./stream_processor.py ~/stream_processor.py
-
-          
