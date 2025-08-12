@@ -1,11 +1,11 @@
 name: Deploy Script
 on:
   push:
-    branches: [ "feature-Docker" ]
+    branches: [ "main" ]
     
 jobs:
   test-and-deploy:
-    runs-on: self-hosted  # Uses EC2 runner!
+    runs-on: self-hosted  # Uses EC2 runner
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
