@@ -13,7 +13,7 @@ jobs:
 
       - name: Run tests
         run: |
-          python -m pytest testing/test_processor.py -v
+          run: python3 -m pytest testing/test_processor.py -v
 
       - name: Backup & Deploy
         if: success()
