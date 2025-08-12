@@ -1,30 +1,27 @@
-name: Auto Deploy to EC2
-
+name: Deploy Script
 on:
   push:
-    branches:
-      - main
+    branches: [ "feature-Docker" ]
+    
 
 jobs:
-  deploy:
-    runs-on: ubuntu-latest
-
+  test-and-deploy:
+    runs-on: self-hosted  # Uses EC2 runner!
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Setup SSH key
+      - name: Run tests
         run: |
-          echo "${{ secrets.EC2_SSH_KEY }}" > ec2_key.pem
-          chmod 600 ec2_key.pem
+          python -m pytest testing/test_processor.py -v
 
-      - name: Deploy to EC2
+      - name: Backup & Deploy
+        if: success()
         run: |
-          ssh -o StrictHostKeyChecking=no -i ec2_key.pem ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
-            cd /home/ubuntu/stream-processor
-            git pull origin main
-            docker build -t stream-processor .
-            docker stop stream-processor || true
-            docker rm stream-processor || true
-            docker run -d --name stream-processor --network host stream-processor
-          EOF
+          # Rename old file (add date)
+          mv ~/stream_processor.py ~/stream_processor_$(date +'%Y-%m-%d').py
+
+          # Copy new file 
+          cp ./stream_processor.py ~/stream_processor.py
+
+          

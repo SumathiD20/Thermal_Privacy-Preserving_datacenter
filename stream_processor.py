@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 import json
 import numpy as np
+import pandas as pd
 import joblib
 from datetime import datetime, timedelta
 from cryptography.fernet import Fernet
 import paho.mqtt.client as mqtt
-from datadog import initialize, statsd  
+from datadog import initialize, statsd
 
 # — Datadog setup —
 options = {
@@ -20,7 +21,7 @@ PORT            = 1883
 RAW_TOPIC       = 'dc/temperature/raw_encrypted'
 MASKED_TOPIC    = 'dc/temperature/masked_encrypted'
 OVERHEAT_TEMP   = 30.0
-UNDERCOOL_TEMP  = 21.0     
+UNDERCOOL_TEMP  = 21.0
 PROLONGED_SECS  = 20
 
 # — Load model and key (files must be in the same directory) —
@@ -57,7 +58,8 @@ def on_message(client, userdata, msg):
     statsd.histogram('stream_processor.temperature', temp)
 
     # Anomaly detection
-    is_anomaly = model.predict([[temp]])[0] == -1
+#    is_anomaly = model.predict([[temp]])[0] == -1
+    is_anomaly = model.predict(pd.DataFrame([[temp]], columns=["temperature_C"]))[0] == -1
     if is_anomaly:
         statsd.increment('stream_processor.anomalies_detected')
 
@@ -80,10 +82,10 @@ def on_message(client, userdata, msg):
         print(f"\033[91m[Processor] Overheat {temp:.2f}°C – passing real value\033[0m")
         statsd.increment('stream_processor.overheat_events')
 
-    elif temp <= UNDERCOOL_TEMP:                                      
+    elif temp <= UNDERCOOL_TEMP:
         out_temp = temp
-        print(f"\033[94m[Processor] Undercool {temp:.2f}°C – passing real value\033[0m")  
-        statsd.increment('stream_processor.undercool_events')                       
+        print(f"\033[94m[Processor] Undercool {temp:.2f}°C – passing real value\033[0m")
+        statsd.increment('stream_processor.undercool_events')
 
     elif is_anomaly:
         out_temp = 25.0 + np.random.normal(0, 0.1)
