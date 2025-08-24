@@ -17,6 +17,6 @@ jobs:
         if: success()
         run: |
           # Rename old file (add date)
-          mv ~/stream_processor.py ~/stream_processor_$(date +'%Y-%m-%d').py
+          mv ~/stream_processor.py ~/stream_processor_$(date +'%Y-%m-%d_%H-%M-%S').py
           # Copy new file 
           cp ./stream_processor.py ~/stream_processor.py
